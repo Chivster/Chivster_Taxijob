@@ -1,5 +1,7 @@
 # Taxi Job Script Installation Guide
 
+DISCORD SUPPORT: https://discord.gg/yVJSPvURrX
+
 ## 📦 Requirements
 
 - ✅ QBCore or Qbox Framework
@@ -22,3 +24,4 @@ CREATE TABLE IF NOT EXISTS `taxi_deliveries` (
   PRIMARY KEY (`id`),
   UNIQUE (`cid`)
 );
+
