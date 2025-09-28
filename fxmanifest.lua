@@ -3,7 +3,7 @@ game 'gta5'
 
 lua54 'yes'
 
-author 'NoLo Store'
+author 'Chivster'
 description 'Taxi Job'
 version '1.0.0'
 
