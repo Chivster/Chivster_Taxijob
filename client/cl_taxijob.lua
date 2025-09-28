@@ -1,7 +1,3 @@
-if GetCurrentResourceName() ~= 'nolo_taxijob' then
-    return print("^1[ERROR]^0 This script must be named ^3nolo_taxijob^0 to function properly.")
-end
-
 local deliveryCount, taxiVeh, currentPed = 0, nil, nil
 local dropCoords, nearMarker = nil, false
 local jobActive = false
@@ -266,3 +262,4 @@ function createReturnZone()
         end
     end)
 end
+
