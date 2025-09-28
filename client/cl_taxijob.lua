@@ -1,7 +1,56 @@
-local deliveryCount, taxiVeh, currentPed = 0, nil, nil
+local deliveryCount, taxiVeh = 0, nil
 local dropCoords, nearMarker = nil, false
 local jobActive = false
 local activeBlips = {}
+
+local starterPed = nil   -- permanent ped at depot
+local passengerPed = nil -- temp ped for fares
+
+-- shuffle bag for unique passenger models
+local modelBag = {}
+
+local function refillAndShuffleModelBag()
+    modelBag = {}
+    for i = 1, #Config.PassengerModels do
+        modelBag[i] = Config.PassengerModels[i]
+    end
+    for i = #modelBag, 2, -1 do
+        local j = math.random(i)
+        modelBag[i], modelBag[j] = modelBag[j], modelBag[i]
+    end
+end
+
+local function drawNextPassengerModel()
+    if #modelBag == 0 then
+        refillAndShuffleModelBag()
+    end
+    return table.remove(modelBag)
+end
+
+local function randomizePedAppearance(ped)
+    for comp = 0, 11 do
+        local drawables = GetNumberOfPedDrawableVariations(ped, comp)
+        if drawables and drawables > 0 then
+            local drawable = math.random(0, drawables - 1)
+            local textures = GetNumberOfPedTextureVariations(ped, comp, drawable)
+            local texture = (textures and textures > 0) and math.random(0, textures - 1) or 0
+            SetPedComponentVariation(ped, comp, drawable, texture, 0)
+        end
+    end
+    for prop = 0, 2 do
+        local pCount = GetNumberOfPedPropDrawableVariations(ped, prop)
+        if pCount and pCount > 0 then
+            if math.random() < 0.2 then
+                ClearPedProp(ped, prop)
+            else
+                local pDraw = math.random(0, pCount - 1)
+                local pTexCount = GetNumberOfPedPropTextureVariations(ped, prop, pDraw)
+                local pTex = (pTexCount and pTexCount > 0) and math.random(0, pTexCount - 1) or 0
+                SetPedPropIndex(ped, prop, pDraw, pTex, true)
+            end
+        end
+    end
+end
 
 RegisterCommand('taxiend', function()
     cancelJob(true)
@@ -9,7 +58,7 @@ end)
 
 function cancelJob(showNotify)
     if DoesEntityExist(taxiVeh) then DeleteVehicle(taxiVeh) end
-    if DoesEntityExist(currentPed) then DeletePed(currentPed) end
+    if DoesEntityExist(passengerPed) then DeletePed(passengerPed) end
     for _, blip in ipairs(activeBlips) do
         if DoesBlipExist(blip) then RemoveBlip(blip) end
     end
@@ -91,13 +140,12 @@ CreateThread(function()
     local pedModel = Config.TaxiPed.model
     RequestModel(pedModel)
     while not HasModelLoaded(pedModel) do Wait(0) end
-    local ped = CreatePed(0, pedModel, Config.TaxiPed.coords.xyz, Config.TaxiPed.coords.w, false, true)
-    currentPed = ped
-    FreezeEntityPosition(ped, true)
-    SetEntityInvincible(ped, true)
-    TaskStartScenarioInPlace(ped, 'WORLD_HUMAN_CLIPBOARD', 0, true)
+    starterPed = CreatePed(0, pedModel, Config.TaxiPed.coords.xyz, Config.TaxiPed.coords.w, false, true)
+    FreezeEntityPosition(starterPed, true)
+    SetEntityInvincible(starterPed, true)
+    TaskStartScenarioInPlace(starterPed, 'WORLD_HUMAN_CLIPBOARD', 0, true)
 
-    exports.ox_target:addLocalEntity(ped, {
+    exports.ox_target:addLocalEntity(starterPed, {
         {
             icon = 'fa-solid fa-taxi',
             label = 'Start Taxi Job',
@@ -145,13 +193,24 @@ function beginNextPickup(level)
     table.insert(activeBlips, blip)
 
     CreateThread(function()
-        local pedModel = `a_m_m_business_01`
+        local pedModel = drawNextPassengerModel()
         RequestModel(pedModel)
         while not HasModelLoaded(pedModel) do Wait(0) end
-        currentPed = CreatePed(0, pedModel, pick.x, pick.y, pick.z, 0.0, false, true)
-        SetBlockingOfNonTemporaryEvents(currentPed, true)
-        SetEntityInvincible(currentPed, true)
-        TaskStartScenarioInPlace(currentPed, 'WORLD_HUMAN_STAND_IMPATIENT', 0, true)
+
+        if DoesEntityExist(passengerPed) then
+            DeletePed(passengerPed)
+            passengerPed = nil
+        end
+
+        passengerPed = CreatePed(4, pedModel, pick.x, pick.y, pick.z, 0.0, false, true)
+        SetEntityAsMissionEntity(passengerPed, true, true)
+        SetBlockingOfNonTemporaryEvents(passengerPed, true)
+        SetEntityInvincible(passengerPed, true)
+
+        randomizePedAppearance(passengerPed)
+
+        local scenario = Config.PassengerScenarios[math.random(#Config.PassengerScenarios)]
+        TaskStartScenarioInPlace(passengerPed, scenario, 0, true)
 
         while not IsPedInVehicle(PlayerPedId(), taxiVeh, false)
               or #(GetEntityCoords(PlayerPedId()) - pick) > 8.0
@@ -159,7 +218,8 @@ function beginNextPickup(level)
             Wait(500)
         end
 
-        TaskEnterVehicle(currentPed, taxiVeh, -1, 2, 1.0, 1, 0)
+        ClearPedTasks(passengerPed)
+        TaskEnterVehicle(passengerPed, taxiVeh, -1, 2, 1.0, 1, 0)
         if DoesBlipExist(blip) then RemoveBlip(blip) end
 
         Wait(1000)
@@ -190,20 +250,21 @@ function beginDropOff(level)
             end
 
             if dist < 3.0 then
-                if IsPedInVehicle(currentPed, taxiVeh, false) then
+                if IsPedInVehicle(passengerPed, taxiVeh, false) then
                     lib.showTextUI('[E] Drop off passenger')
                     if IsControlJustReleased(0, 38) then
                         lib.hideTextUI()
-                        TaskLeaveVehicle(currentPed, taxiVeh, 0)
+                        TaskLeaveVehicle(passengerPed, taxiVeh, 0)
                         Wait(1000)
-                        ClearPedTasks(currentPed)
+                        ClearPedTasks(passengerPed)
                         SetVehicleDoorsShut(taxiVeh, true)
-                        TaskGoStraightToCoord(currentPed, dropCoords.x + 2, dropCoords.y + 2, dropCoords.z, 1.0, -1, 0.0, 0.0)
-                        SetPedKeepTask(currentPed, true)
-                        SetEntityAsNoLongerNeeded(currentPed)
+                        TaskGoStraightToCoord(passengerPed, dropCoords.x + 2, dropCoords.y + 2, dropCoords.z, 1.0, -1, 0.0, 0.0)
+                        SetPedKeepTask(passengerPed, true)
+                        SetEntityAsNoLongerNeeded(passengerPed)
                         RemoveBlip(blip)
                         TriggerServerEvent('taxi:completeDelivery', level)
                         showJobContinueMenu(level)
+                        passengerPed = nil
                         break
                     end
                 else
@@ -262,4 +323,3 @@ function createReturnZone()
         end
     end)
 end
-
