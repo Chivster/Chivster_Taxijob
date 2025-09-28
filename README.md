@@ -1,4 +1,4 @@
-# 🚖 NoLo Taxi Job Script Installation Guide
+# Taxi Job Script Installation Guide
 
 ## 📦 Requirements
 
