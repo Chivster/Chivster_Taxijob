@@ -67,3 +67,22 @@ Config.TaxiBlip = {
     enabled = true, --- true will display the blip!
     label = "Downtown Cab Co"
 }
+
+-- Passenger ped models
+Config.PassengerModels = {
+    -- Male
+    `a_m_m_business_01`, `a_m_y_business_02`, `a_m_y_hipster_01`, `a_m_m_skater_01`,
+    `a_m_y_genstreet_01`, `a_m_m_eastsa_01`, `a_m_y_smartcaspat_01`,
+    -- Female
+    `a_f_y_hipster_02`, `a_f_y_tourist_01`, `a_f_y_business_01`, `a_f_y_indian_01`,
+    `a_f_y_hipster_04`, `a_f_o_indian_01`,
+}
+
+-- Passenger idle behaviors while waiting
+Config.PassengerScenarios = {
+    'WORLD_HUMAN_STAND_IMPATIENT',
+    'WORLD_HUMAN_SMOKING',
+    'WORLD_HUMAN_MOBILE',
+    'WORLD_HUMAN_TOURIST_MAP',
+    'WORLD_HUMAN_DRINKING'
+}
